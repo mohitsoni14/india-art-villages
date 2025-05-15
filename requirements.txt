@@ -2,3 +2,4 @@ streamlit
 pandas
 geopandas
 plotly
+snowflake-connector-python
