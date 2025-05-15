@@ -3,6 +3,6 @@ pandas
 snowflake-connector-python
 folium==0.14.0
 streamlit-folium
-st-aggrid
+streamlit-aggrid
 streamlit-calendar
 altair
