@@ -83,7 +83,7 @@ st.markdown(
     """, unsafe_allow_html=True)
 
 # Big India Canvas Headline with Background Image
-st.markdown('<div class="header"><h1>India’s Cultural Canvas 🎨</h1><p>Celebrating the rich heritage of India’s vibrant art villages and cultural destinations.</p></div>', unsafe_allow_html=True)
+st.markdown('<div class="header"><h1>Explore the Soul of India, One Village at a Time</h1><p>Celebrating the rich heritage of India’s vibrant art villages and cultural destinations.</p></div>', unsafe_allow_html=True)
 
 st.markdown("### 🌟 Discover, Experience, and Preserve India's Cultural Roots")
 st.markdown("##### From hidden art villages to timeless traditions, explore the unseen side of India.")
@@ -115,7 +115,6 @@ villages_df['STATE'] = villages_df['STATE'].str.strip().str.upper()
 
 # --- Sidebar Filter ---
 states = sorted(villages_df['STATE'].dropna().unique())
-
 selected_state = st.sidebar.selectbox("Select a state", ["ALL"] + states)
 
 if selected_state != "ALL":
@@ -123,8 +122,16 @@ if selected_state != "ALL":
 else:
     filtered_df = villages_df
 
-# Search Box in Sidebar with unique key
+# Fixed Search Implementation
 search_query = st.sidebar.text_input("🔍 Search by Village or Art Form", key="village_search")
+
+# Apply search filter if query exists
+if search_query:
+    search_query = search_query.strip().lower()
+    filtered_df = filtered_df[
+        (filtered_df['VILLAGE_NAME'].str.lower().str.contains(search_query)) |
+        (filtered_df['ART_FORM'].str.lower().str.contains(search_query))
+    ]
 
 # Navigation tabs using st.tabs
 tabs = st.tabs(["🏠 Home", "🗺️ Cultural Map", "📅 Events Calendar", "📈 Analytics", "📖 Stories", "🛍️ Artisan Marketplace"])
@@ -156,7 +163,7 @@ with tabs[0]:
         }
 
         .home-hero {
-            background-image: url('https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1350&q=80');
+            background-image: url('https://images.unsplash.com/photo-1716396635935-b7ba3d91a1cb?q=80&w=2071&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D');
             background-size: cover;
             background-position: center;
             height: 400px;
@@ -398,44 +405,70 @@ with tabs[1]:
     folium_static(m, width=700)  # Fix map size by specifying width
 
 # ------------------- EVENTS CALENDAR -------------------
+# ------------------- EVENTS CALENDAR -------------------
 with tabs[2]:
-    # Sample events data (this can come from Snowflake or any dynamic source)
-    events = [
-        {"title": "Pattachitra Festival", "start": "2025-12-10", "end": "2025-12-12", "location": "Odisha"},
-        {"title": "Madhubani Art Mela", "start": "2025-10-05", "end": "2025-10-07", "location": "Bihar"},
-        {"title": "Kalamkari Crafts Week", "start": "2025-01-20", "end": "2025-01-25", "location": "Telangana"},
-        {"title": "Blue Pottery Fair", "start": "2025-03-10", "end": "2025-03-12", "location": "Rajasthan"}
-    ]
+    @st.cache_data
+    def load_festival_data():
+        conn = snowflake.connector.connect(
+            user='MOHITSONI09',
+            password='Mohitsoni@&1234',
+            account='jvqrqhg-mq37542',
+            warehouse='COMPUTE_WH',
+            database='ART_TOURISM_DB',
+            schema='PUBLIC'
+        )
+        query = "SELECT TITLE, START_DATE, END_DATE, VILLAGE_NAME, DESCRIPTION FROM FESTIVALS_TABLE"
+        cur = conn.cursor()
+        cur.execute(query)
+        data = cur.fetchall()
+        columns = [desc[0] for desc in cur.description]
+        df = pd.DataFrame(data, columns=columns)
+        conn.close()
+        return df
 
-    # Convert events to DataFrame for easier manipulation
-    df_events = pd.DataFrame(events)
+    # Load festival data
+    festivals_df = load_festival_data()
 
-    # Convert the 'start' and 'end' columns to datetime
-    df_events['start'] = pd.to_datetime(df_events['start']).dt.date
-    df_events['end'] = pd.to_datetime(df_events['end']).dt.date
+    # Convert to calendar events format
+    events = []
+    for _, row in festivals_df.iterrows():
+        events.append({
+            "title": row['TITLE'],
+            "start": row['START_DATE'].strftime('%Y-%m-%d') if pd.notnull(row['START_DATE']) else None,
+            "end": row['END_DATE'].strftime('%Y-%m-%d') if pd.notnull(row['END_DATE']) else None,
+            "location": row['VILLAGE_NAME'],
+            "description": row['DESCRIPTION'] if pd.notnull(row['DESCRIPTION']) else "Cultural festival"
+        })
+
+    # Filter out events with invalid dates
+    valid_events = [e for e in events if e['start'] and e['end']]
 
     # Title and Description
-    st.title("India’s Cultural Canvas 🎨")
-    st.markdown("### 🎭 Cultural Events Calendar")
+    st.title("India's Cultural Canvas 🎨")
+    st.markdown("### 🎭 Festival Calendar (Live from Snowflake)")
 
     # Date selection input
     selected_date = st.date_input("Select a Date", min_value=pd.to_datetime("2025-01-01").date())
 
-    # Filter events based on the selected date
-    filtered_events = df_events[(df_events['start'] <= selected_date) & (df_events['end'] >= selected_date)]
+    # Filter events for selected date
+    filtered_events = [
+        e for e in valid_events 
+        if pd.to_datetime(e['start']).date() <= selected_date <= pd.to_datetime(e['end']).date()
+    ]
 
-    # Display events if any are found
-    if not filtered_events.empty:
-        st.markdown("#### Events on " + selected_date.strftime('%Y-%m-%d') + ":")
-        for idx, event in filtered_events.iterrows():
-            st.markdown(f"""
-            - **{event['title']}** in {event['location']} 
-              (from {event['start']} to {event['end']})
-            - **Description**: Experience the vibrancy of traditional art forms.
-            - [More Info](https://www.google.com/search?q={event['title']})
-            """)
+    # Display events
+    if filtered_events:
+        st.markdown(f"#### Festivals on {selected_date.strftime('%B %d, %Y')}:")
+        for event in filtered_events:
+            with st.expander(f"🎪 {event['title']} - {event['location']}"):
+                st.markdown(f"""
+                **📅 Dates:** {event['start']} to {event['end']}  
+                **📍 Location:** {event['location']}  
+                **📝 Description:** {event['description']}  
+                """)
     else:
-        st.write("No events on this day.")
+        st.info("No festivals found on this date")
+
 
 # ------------------- ANALYTICS -------------------
 with tabs[3]:
