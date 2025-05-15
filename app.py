@@ -295,14 +295,24 @@ st.markdown("""
 """.format(total_villages, total_art_forms, total_states), unsafe_allow_html=True)
 
 
-    # Video section with fade-in
 st.markdown(
-        """
-        <div class="video-container fade-in delay-4">
-            <iframe width="100%" height="405" src="https://www.youtube.com/embed/5Y5Y3XJ2U5k" 
-            title="India's Art and Culture" frameborder="0" allowfullscreen></iframe>
-        </div>
-        """, unsafe_allow_html=True)
+    """
+    <div class="video-container fade-in delay-4" style="overflow: hidden; border-radius: 15px; max-width: 100%; max-height: 405px;">
+        <iframe 
+            width="100%" 
+            height="405" 
+            src="https://www.youtube.com/embed/rTDaZoDDW5g" 
+            title="India's Art and Culture" 
+            frameborder="0" 
+            allowfullscreen
+            style="border-radius: 15px; display: block;"
+        ></iframe>
+    </div>
+    """, 
+    unsafe_allow_html=True
+)
+
+
 
 
 st.markdown("""
@@ -342,10 +352,10 @@ st.markdown("""
 
 <h2 class="gallery-title">Gallery</h2>
 <div class="image-gallery">
-    <img src="https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=600&q=80" alt="Art Village 1" />
-    <img src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=600&q=80" alt="Art Village 2" />
-    <img src="https://images.unsplash.com/photo-1549887534-f7f3d78d5a9f?auto=format&fit=crop&w=600&q=80" alt="Art Village 3" />
-    <img src="https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=600&q=80" alt="Art Village 4" />
+    <img src="https://images.pexels.com/photos/1007431/pexels-photo-1007431.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2" alt="Art Village 1" />
+    <img src="https://images.pexels.com/photos/27028141/pexels-photo-27028141/free-photo-of-exterior-of-the-chhatrapati-shivaji-maharaj-terminus-station.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2" alt="Art Village 2" />
+    <img src="https://images.pexels.com/photos/12414078/pexels-photo-12414078.jpeg?auto=compress&cs=tinysrgb&w=600" alt="Art Village 3" />
+    <img src="https://images.pexels.com/photos/11474965/pexels-photo-11474965.jpeg?auto=compress&cs=tinysrgb&w=600" alt="Art Village 4" />
 </div>
 """, unsafe_allow_html=True)
 
