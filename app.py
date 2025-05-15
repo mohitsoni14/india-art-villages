@@ -558,7 +558,7 @@ with tabs[5]:
 
     st.markdown("If you are an artisan or know local artists, submit your details to be featured here!")
 
-    # Artisan submission form (dummy implementation)
+    # Artisan submission form (dummy implementation) 
     with st.form("artisan_form", clear_on_submit=True):
         artisan_name = st.text_input("Artisan Name")
         craft = st.text_input("Craft")
