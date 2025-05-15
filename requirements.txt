@@ -1,17 +1,8 @@
 streamlit
 pandas
-geopandas
-plotly
 snowflake-connector-python
-streamlit as st
-pandas as pd
-snowflake.connector
 folium
-folium.plugins import MarkerCluster
-streamlit_folium import folium_static
-st_aggrid import AgGrid, GridOptionsBuilder
-streamlit_calendar import calendar
-datetime import datetime
-csv
-sqlite3
-altair as alt
+streamlit-folium
+st-aggrid
+streamlit-calendar
+altair
