@@ -24,7 +24,7 @@ st.markdown(
     """
     <style>
     .header {
-        background-image: url('https://images.pexels.com/photos/2477374/pexels-photo-2477374.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2');
+        background-image: url('https://images.unsplash.com/photo-1716396635935-b7ba3d91a1cb?q=80&w=2071&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D');
         background-size: cover;
         background-position: center;
         border-radius: 15px;
@@ -163,8 +163,8 @@ with tabs[0]:
         }
 
         .home-hero {
-            background-image: url('https://images.unsplash.com/photo-1716396635935-b7ba3d91a1cb?q=80&w=2071&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D');
-            background-size: cover;
+            background-image: url('https://images.pexels.com/photos/2477374/pexels-photo-2477374.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2');
+            background-size: cover;https://images.unsplash.com/photo-1716396635935-b7ba3d91a1cb?q=80&w=2071&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D
             background-position: center;
             height: 400px;
             border-radius: 15px;
@@ -530,42 +530,131 @@ with tabs[3]:
         st.altair_chart(state_chart, use_container_width=True)
 
 # ------------------- STORIES -------------------
+# ------------------- STORIES TAB (FIXED VERSION) -------------------
 with tabs[4]:
-    st.markdown("## 📝 Visitor Stories & Cultural Narratives")
+    # Connection manager (auto-reconnects if needed)
+    class SnowflakeConnection:
+        def __init__(self):
+            self.conn = None
+            self.connect()
+        
+        def connect(self):
+            try:
+                self.conn = snowflake.connector.connect(
+                    user='MOHITSONI09',
+                    password='Mohitsoni@&1234',
+                    account='jvqrqhg-mq37542',
+                    warehouse='COMPUTE_WH',
+                    database='ART_TOURISM_DB',
+                    schema='PUBLIC',
+                    client_session_keep_alive=True
+                )
+                return True
+            except Exception as e:
+                st.error(f"Connection failed: {str(e)}")
+                return False
+        
+        def get_cursor(self):
+            try:
+                if not self.conn or self.conn.is_closed():
+                    self.connect()
+                return self.conn.cursor()
+            except:
+                return None
+        
+        def close(self):
+            if self.conn and not self.conn.is_closed():
+                self.conn.close()
 
-    # SQLite connection for storing visitor stories (persistent)
-    conn = sqlite3.connect('visitor_stories.db')
-    c = conn.cursor()
-    c.execute('CREATE TABLE IF NOT EXISTS stories (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, story TEXT, date TIMESTAMP DEFAULT CURRENT_TIMESTAMP)')
+    # Initialize connection
+    if 'snowflake_conn' not in st.session_state:
+        st.session_state.snowflake_conn = SnowflakeConnection()
 
-    # Story submission form
-    with st.form("story_form", clear_on_submit=True):
-        name = st.text_input("Your Name")
-        story = st.text_area("Your Story or Experience")
-        submitted = st.form_submit_button("Submit Story")
+    # ------------------- STORY SUBMISSION -------------------
+    with st.expander("✍️ Share Your Story", expanded=False):
+        with st.form("story_form"):
+            name = st.text_input("Your Name (Optional)", key="story_name")
+            story = st.text_area("Your Experience", height=150, key="story_content")
+            
+            if st.form_submit_button("Publish", type="primary"):
+                if not story.strip():
+                    st.warning("Please write your story first")
+                else:
+                    cursor = st.session_state.snowflake_conn.get_cursor()
+                    if cursor:
+                        try:
+                            cursor.execute(
+                                "INSERT INTO visitor_stories (name, story) VALUES (%s, %s)",
+                                (name.strip() or "Anonymous", story.strip())
+                            )
+                            st.session_state.snowflake_conn.conn.commit()
+                            st.success("Published successfully!")
+                            st.balloons()
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Failed to save: {str(e)}")
+                        finally:
+                            cursor.close()
+                    else:
+                        st.error("Database unavailable")
 
-        if submitted:
-            if name.strip() == "" or story.strip() == "":
-                st.warning("Please fill both name and story fields.")
+    # ------------------- STORY DISPLAY -------------------
+    st.markdown("## 🌟 Recent Stories")
+    
+    # Fixed story display function
+    def display_story(name, story, date):
+        # Header section
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.markdown(f"**🧑 {name}**")
+        with col2:
+            st.caption(f"📅 {date.strftime('%b %d, %Y')}")
+        
+        # Story content
+        st.markdown(f"""
+        <div style='color: #FFFFFF; line-height: 1.6; margin-bottom: 10px;'>
+            {story if len(story) < 250 else story[:250] + '...'}
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Read more expander
+        if len(story) > 250:
+            with st.expander("Read full story"):
+                st.markdown(f"""
+                <div style='color: #FFFFFF; line-height: 1.6; padding: 10px;'>
+                    {story}
+                </div>
+                """, unsafe_allow_html=True)
+        
+        st.divider()
+
+    # Fetch and display stories
+    cursor = st.session_state.snowflake_conn.get_cursor()
+    if cursor:
+        try:
+            cursor.execute("""
+                SELECT name, story, date 
+                FROM visitor_stories 
+                ORDER BY date DESC 
+                LIMIT 10
+            """)
+            stories = cursor.fetchall()
+            
+            if stories:
+                for name, story, date in stories:
+                    display_story(name, story, date)
             else:
-                c.execute('INSERT INTO stories (name, story) VALUES (?, ?)', (name, story))
-                conn.commit()
-                st.success("Thank you for sharing your story!")
-
-    # Display stories
-    c.execute('SELECT name, story, date FROM stories ORDER BY date DESC LIMIT 10')
-    stories = c.fetchall()
-
-    if stories:
-        for s in stories:
-            st.markdown(f"**{s[0]}** ({s[2]}):")
-            st.write(s[1])
-            st.markdown("---")
+                st.info("No stories yet. Be the first to share!")
+        except Exception as e:
+            st.error(f"Failed to load stories: {str(e)}")
+        finally:
+            cursor.close()
     else:
-        st.info("No stories yet. Be the first to share your experience!")
+        st.error("Database connection unavailable")
 
-    conn.close()
-
+    # Connection cleanup
+    if hasattr(st.session_state, 'snowflake_conn'):
+        st.session_state.snowflake_conn.close()
 # ------------------- ARTISAN MARKETPLACE -------------------
 with tabs[5]:
     st.markdown("## 🛒 Artisan Marketplace - Support Local Crafts")
