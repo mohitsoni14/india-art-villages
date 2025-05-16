@@ -655,42 +655,122 @@ with tabs[4]:
     # Connection cleanup
     if hasattr(st.session_state, 'snowflake_conn'):
         st.session_state.snowflake_conn.close()
+
+
+
 # ------------------- ARTISAN MARKETPLACE -------------------
 with tabs[5]:
     st.markdown("## 🛒 Artisan Marketplace - Support Local Crafts")
 
-    # Load artisan marketplace data from CSV or any data source
-    # For demo, creating dummy data
-    artisans = [
-        {"Name": "Ramesh Kumar", "Craft": "Madhubani Painting", "State": "Bihar", "Contact": "ramesh@example.com", "Price Range": "₹500-2000"},
-        {"Name": "Meera Devi", "Craft": "Pattachitra", "State": "Odisha", "Contact": "meera@example.com", "Price Range": "₹1000-3500"},
-        {"Name": "Anil Singh", "Craft": "Blue Pottery", "State": "Rajasthan", "Contact": "anil@example.com", "Price Range": "₹800-3000"},
-        {"Name": "Sunita Patel", "Craft": "Kalamkari", "State": "Telangana", "Contact": "sunita@example.com", "Price Range": "₹600-2500"},
-    ]
+    # --- Snowflake Connection ---
+    conn = snowflake.connector.connect(
+        user='MOHITSONI09',
+        password='Mohitsoni@&1234',
+        account='jvqrqhg-mq37542',
+        warehouse='COMPUTE_WH',
+        database='ART_TOURISM_DB',
+        schema='PUBLIC',
+    )
 
-    artisans_df = pd.DataFrame(artisans)
-    gb = GridOptionsBuilder.from_dataframe(artisans_df)
-    gb.configure_pagination(enabled=True, paginationPageSize=5)
-    gb.configure_default_column(editable=False, groupable=True)
-    grid_options = gb.build()
+    # --- Fetch Artisans from Snowflake ---
+    def get_artisans():
+        query = "SELECT * FROM ARTISAN_MARKETPLACE"
+        return pd.read_sql(query, conn)
 
-    st.markdown("Browse local artisans and support traditional crafts by contacting them directly.")
+    # --- Insert Artisan into Snowflake ---
+    def insert_artisan(name, craft, state, contact, price_range):
+        cur = conn.cursor()
+        insert_query = """
+            INSERT INTO ARTISAN_MARKETPLACE (NAME, CRAFT, STATE, CONTACT, PRICE_RANGE)
+            VALUES (%s, %s, %s, %s, %s)
+        """
+        cur.execute(insert_query, (name, craft, state, contact, price_range))
+        cur.close()
 
-    AgGrid(artisans_df, gridOptions=grid_options, height=300, theme='fresh')
+    # --- Load Artisan Data ---
+    artisans_df = get_artisans()
 
-    st.markdown("If you are an artisan or know local artists, submit your details to be featured here!")
+    # --- Filter Section ---
+    st.markdown("#### 🔍 Filter Artisans")
+    col1, col2 = st.columns(2)
+    selected_state = col1.selectbox("Select State", ["All"] + sorted(artisans_df["STATE"].unique()))
+    selected_craft = col2.selectbox("Select Craft", ["All"] + sorted(artisans_df["CRAFT"].unique()))
 
-    # Artisan submission form (dummy implementation)
+    filtered_df = artisans_df.copy()
+    if selected_state != "All":
+        filtered_df = filtered_df[filtered_df["STATE"] == selected_state]
+    if selected_craft != "All":
+        filtered_df = filtered_df[filtered_df["CRAFT"] == selected_craft]
+
+    st.markdown("### 🎨 Featured Artisans")
+
+    cols_per_row = 2
+
+    for i in range(0, len(filtered_df), cols_per_row):
+        cols = st.columns(cols_per_row)
+        for j, idx in enumerate(range(i, min(i + cols_per_row, len(filtered_df)))):
+            row = filtered_df.iloc[idx]
+            with cols[j]:
+                st.markdown(f"""
+                <div style="
+                    border: 1.5px solid #2e7d32; 
+                    border-radius: 12px; 
+                    padding: 20px; 
+                    margin-bottom: 18px; 
+                    background-color: #0f3d2f; 
+                    color: #e0e0d8; 
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                    line-height: 1.5;
+                    min-width: 280px;
+                    max-width: 480px;
+                ">
+                    <h3 style="
+                        font-size: 22px; 
+                        margin-bottom: 10px; 
+                        color: #a8d5ba;
+                        font-weight: 700;
+                    ">
+                        {row['NAME']} <span style='font-weight: 500; color: #c6e2d9;'>({row['CRAFT']})</span>
+                    </h3>
+                    <p style="font-size: 16px; margin: 6px 0;">
+                        <strong>State:</strong> {row['STATE']}
+                    </p>
+                    <p style="font-size: 16px; margin: 6px 0;">
+                        <strong>Contact:</strong> <a href='mailto:{row['CONTACT']}' style='color:#a8d5ba; text-decoration:none;'>{row['CONTACT']}</a>
+                    </p>
+                    <p style="font-size: 16px; margin: 6px 0;">
+                        <strong>Price Range:</strong> {row['PRICE_RANGE']}
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+
+        # Fill empty columns if last row has fewer cards (keeps layout aligned)
+        remaining_cols = cols_per_row - (len(filtered_df) - i)
+        if remaining_cols > 0:
+            for k in range(remaining_cols):
+                with cols[cols_per_row - 1 - k]:
+                    st.markdown("<div style='visibility:hidden; height:200px;'></div>", unsafe_allow_html=True)
+
+    # --- Submission Form ---
+    st.markdown("---")
+    st.markdown("### 📥 Submit Artisan Details")
+    st.markdown("If you are an artisan or know someone, help them get discovered!")
+
     with st.form("artisan_form", clear_on_submit=True):
-        artisan_name = st.text_input("Artisan Name")
-        craft = st.text_input("Craft")
-        state = st.selectbox("State", states)
-        contact = st.text_input("Contact Email")
-        price_range = st.text_input("Price Range")
+        col1, col2 = st.columns(2)
+        artisan_name = col1.text_input("Artisan Name")
+        craft = col2.text_input("Craft")
+        state = col1.selectbox("State", states)
+        contact = col2.text_input("Contact Email")
+        price_range = col1.text_input("Price Range (e.g., ₹500-2000)")
+
         submit_artisan = st.form_submit_button("Submit")
 
         if submit_artisan:
             if artisan_name and craft and state and contact and price_range:
-                st.success(f"Thank you {artisan_name} for submitting your craft details! We will review and add it soon.")
+                insert_artisan(artisan_name, craft, state, contact, price_range)
+                st.success(f"✅ Thank you **{artisan_name}** for submitting your details! You've been added to our list.")
+                st.rerun()  # Use this instead of st.rerun() as per Streamlit's API
             else:
-                st.warning("Please fill all the fields to submit your artisan details.")
+                st.warning("⚠️ Please fill all the fields before submitting.")
