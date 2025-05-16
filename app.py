@@ -286,7 +286,7 @@ with tabs[0]:
 
         .home-hero {
             background-image: url('https://images.pexels.com/photos/2477374/pexels-photo-2477374.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2');
-            background-size: cover;https://images.unsplash.com/photo-1716396635935-b7ba3d91a1cb?q=80&w=2071&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D
+            background-size: cover;
             background-position: center;
             height: 400px;
             border-radius: 15px;
