@@ -10,6 +10,8 @@ from datetime import datetime
 import csv
 import sqlite3
 import altair as alt
+from datetime import date
+import calendar
 
 # --- Set Page Configuration ---
 st.set_page_config(
@@ -122,6 +124,10 @@ if selected_state != "ALL":
 else:
     filtered_df = villages_df
 
+    
+
+    
+
 # Fixed Search Implementation
 search_query = st.sidebar.text_input("🔍 Search by Village or Art Form", key="village_search")
 
@@ -133,6 +139,122 @@ if search_query:
         (filtered_df['ART_FORM'].str.lower().str.contains(search_query))
     ]
 
+#journey planner
+st.sidebar.markdown("## 🗺️ Journey Planner")
+st.sidebar.markdown("---")
+
+start_date = st.sidebar.date_input("🛫 Start Date", value=date.today())
+end_date = st.sidebar.date_input("🛬 End Date", value=date.today())
+
+
+# Create two columns in sidebar for Apply and Reset buttons
+col1, col2 = st.sidebar.columns(2)
+
+apply = col1.button("Apply")
+reset = col2.button("Reset")
+
+if reset:
+    # Reset dates to today by rerunning with initial values
+    st.session_state["start_date"] = date.today()
+    st.session_state["end_date"] = date.today()
+    # Optionally clear any other state or variables you use for filtering
+
+if apply:
+    if start_date > end_date:
+        st.error("⚠️ End date must be after start date.")
+    else:
+        st.markdown("## 🗓️ Your Journey Plan")
+        st.markdown(f"From **{start_date.strftime('%b %d, %Y')}** to **{end_date.strftime('%b %d, %Y')}**")
+
+        # Connect to Snowflake
+        conn = snowflake.connector.connect(
+            user='MOHITSONI09',
+            password='Mohitsoni@&1234',
+            account='jvqrqhg-mq37542',
+            warehouse='COMPUTE_WH',
+            database='ART_TOURISM_DB',
+            schema='PUBLIC'
+        )
+        cursor = conn.cursor()
+
+        start_ts = pd.Timestamp(start_date)
+        end_ts = pd.Timestamp(end_date)
+
+        journey_months = list(range(start_date.month, end_date.month + 1))
+
+        # --- 1. Festivals During Your Journey ---
+        with st.expander("🎉 Festivals During Your Journey", expanded=False):
+            query_festivals = f"""
+                SELECT FESTIVAL_ID, TITLE, VILLAGE_NAME, START_DATE, END_DATE, LOCATION, DESCRIPTION
+                FROM FESTIVALS_TABLE
+                WHERE START_DATE <= '{end_ts.date()}'
+                  AND END_DATE >= '{start_ts.date()}'
+            """
+            cursor.execute(query_festivals)
+            fest_data = cursor.fetchall()
+            fest_cols = [desc[0] for desc in cursor.description]
+            festivals_df = pd.DataFrame(fest_data, columns=fest_cols)
+
+            if festivals_df.empty:
+                st.write("No festivals found during your journey dates.")
+            else:
+                for _, fest in festivals_df.iterrows():
+                    st.write(
+                        f"**{fest['TITLE']}** at **{fest['VILLAGE_NAME']}** from "
+                        f"{fest['START_DATE'].strftime('%b %d, %Y')} to {fest['END_DATE'].strftime('%b %d, %Y')}"
+                    )
+
+
+        # Define month sets for seasons
+        summer_months = set(range(3, 10))  # March to September inclusive
+        winter_months = set(list(range(10, 13)) + list(range(1, 3)))  # Oct to Feb inclusive
+
+        # Calculate journey months as a set
+        if start_date <= end_date:
+            journey_months = set(range(start_date.month, end_date.month + 1))
+        else:
+            journey_months = set(list(range(start_date.month, 13)) + list(range(1, end_date.month + 1)))
+
+        # Determine journey season(s)
+        journey_seasons = set()
+        if journey_months.intersection(summer_months):
+            journey_seasons.add("summer")
+        if journey_months.intersection(winter_months):
+            journey_seasons.add("winter")
+
+        if not journey_seasons:
+            st.warning("Could not detect journey season from selected dates.")
+        else:
+            seasons_display = ", ".join([s.capitalize() for s in journey_seasons])
+            st.markdown(f"### 🗓️ Detected Journey Season(s): **{seasons_display}**")
+
+        # --- Add the missing function here ---
+        def is_in_best_time(season_str):
+            if not isinstance(season_str, str):
+                return False
+            s = season_str.strip().lower()
+            if s == "all year":
+                return True
+            return s in journey_seasons
+
+        # Filter villages dataframe from Snowflake
+        villages_in_best_time = villages_df[villages_df['BEST_TIME_TO_VISIT'].apply(is_in_best_time)]
+
+        st.markdown("### 📅 Villages in Their Best Time to Visit During Your Journey")
+
+        with st.expander("Show Villages in Best Time to Visit", expanded=True):
+            if villages_in_best_time.empty:
+                st.write("No villages found matching your journey season or 'All year'.")
+            else:
+                for _, row in villages_in_best_time.iterrows():
+                    st.write(
+                        f"**{row['VILLAGE_NAME']}** ({row['STATE']}) — "
+                        f"{row['DESCRIPTION'][:150]}{'...' if len(row['DESCRIPTION']) > 150 else ''}"
+                    )
+
+
+
+        
 # Navigation tabs using st.tabs
 tabs = st.tabs(["🏠 Home", "🗺️ Cultural Map", "📅 Events Calendar", "📈 Analytics", "📖 Stories", "🛍️ Artisan Marketplace"])
 
@@ -469,17 +591,44 @@ with tabs[2]:
     else:
         st.info("No festivals found on this date")
 
-
 # ------------------- ANALYTICS -------------------
+# Snowflake connection setup — adjust with your credentials
+def get_snowflake_connection():
+    return snowflake.connector.connect(
+        user='MOHITSONI09',
+        password='Mohitsoni@&1234',
+        account='jvqrqhg-mq37542',
+        warehouse='COMPUTE_WH',
+        database='ART_TOURISM_DB',
+        schema='PUBLIC'
+    )
+
+@st.cache_data(ttl=3600)
+def load_visitor_data():
+    conn = get_snowflake_connection()
+    query = """
+    SELECT VILLAGE_NAME, MONTH, SUM(VISITOR_COUNT) AS VISITOR_COUNT
+    FROM TOURISM_TRENDS
+    GROUP BY VILLAGE_NAME, MONTH
+    ORDER BY VILLAGE_NAME, MONTH
+    """
+    cur = conn.cursor()
+    cur.execute(query)
+    data = cur.fetchall()
+    cur.close()
+    conn.close()
+    df = pd.DataFrame(data, columns=['VILLAGE_NAME', 'MONTH', 'VISITOR_COUNT'])
+    df['MONTH'] = pd.to_datetime(df['MONTH'])
+    return df
+
 with tabs[3]:
     st.markdown("## 📊 Cultural Insights Dashboard")
     st.markdown("Visualize trends and patterns from over 1000+ art villages across India.")
 
-    tab1, tab2 = st.tabs(["🎨 Top Art Forms", "📍 Top States"])
+    tab1, tab2, tab3 = st.tabs(["📈 Visitor Trends", "📍 Top States", "🎨 Top Art Forms"])
 
-    with tab1:
+    with tab3:
         st.markdown("#### Top 20 Art Forms by Village Count")
-
         top_arts = villages_df['ART_FORM'].value_counts().reset_index()
         top_arts.columns = ['Art Form', 'Count']
 
@@ -505,7 +654,6 @@ with tabs[3]:
 
     with tab2:
         st.markdown("#### Top 20 States by Number of Art Villages")
-
         top_states = villages_df['STATE'].value_counts().reset_index()
         top_states.columns = ['State', 'Count']
 
@@ -529,7 +677,128 @@ with tabs[3]:
 
         st.altair_chart(state_chart, use_container_width=True)
 
-# ------------------- STORIES -------------------
+    with tab1:
+        st.markdown("#### 📈 Monthly Visitor Counts with Village-wise Distribution")
+
+        visitor_df = load_visitor_data()
+        villages = visitor_df['VILLAGE_NAME'].unique().tolist()
+        default_selection = villages[:5]
+
+        selected_villages = st.multiselect(
+            "Select Villages",
+            options=villages,
+            default=default_selection,
+            key="visitor_trends_villages"
+        )
+
+        filtered_df = visitor_df[visitor_df['VILLAGE_NAME'].isin(selected_villages)]
+
+        if filtered_df.empty:
+            st.info("Select at least one village to see visitor trends.")
+        else:
+            filtered_df = filtered_df.sort_values(['VILLAGE_NAME', 'MONTH'])
+
+            col1, col2 = st.columns([2, 1])
+
+            with col1:
+                line_chart = alt.Chart(filtered_df).mark_line(point=True).encode(
+                    x=alt.X('MONTH:T', title='Month'),
+                    y=alt.Y('VISITOR_COUNT:Q', title='Visitor Count'),
+                    color=alt.Color('VILLAGE_NAME:N', legend=alt.Legend(title="Village")),
+                    tooltip=['VILLAGE_NAME', alt.Tooltip('MONTH:T', title='Month'), 'VISITOR_COUNT']
+                ).properties(
+                    width=700,
+                    height=400,
+                    title="Monthly Visitor Trends by Village"
+                ).configure_axis(
+                    labelFontSize=12,
+                    titleFontSize=14
+                ).configure_title(
+                    fontSize=18,
+                    anchor='start',
+                    color='white'
+                )
+                st.altair_chart(line_chart, use_container_width=True)
+
+            with col2:
+                total_visitors = filtered_df.groupby('VILLAGE_NAME')['VISITOR_COUNT'].sum().reset_index()
+
+                pie_chart = alt.Chart(total_visitors).mark_arc(innerRadius=50).encode(
+                    theta=alt.Theta(field="VISITOR_COUNT", type="quantitative"),
+                    color=alt.Color(field="VILLAGE_NAME", type="nominal", legend=alt.Legend(title="Village")),
+                    tooltip=['VILLAGE_NAME', 'VISITOR_COUNT']
+                ).properties(
+                    width=300,
+                    height=300,
+                    title="Total Visitors Distribution"
+                    
+                ).configure_title(
+                    fontSize=16,
+                    anchor='middle',
+                    color='white'
+                )
+                st.altair_chart(pie_chart)
+                   
+                # 🌱 Responsible Tourism Insights Section
+with tab1:
+
+    # --- Section Header ---
+    st.markdown("### 🌱 Responsible Tourism Insights", unsafe_allow_html=True)
+
+    # --- Process Data ---
+    total_visitors = visitor_df.groupby('VILLAGE_NAME')['VISITOR_COUNT'].sum().reset_index()
+    low_threshold = 1000
+    high_threshold = 3000
+
+    low_visitor_villages = total_visitors[total_visitors['VISITOR_COUNT'] < low_threshold]['VILLAGE_NAME'].tolist()
+    high_visitor_villages = total_visitors[total_visitors['VISITOR_COUNT'] > high_threshold]['VILLAGE_NAME'].tolist()
+
+    # --- Promote Villages Box ---
+    if low_visitor_villages:
+        promote_text = ", ".join(low_visitor_villages)
+        st.markdown(f"""
+            <div style="background-color:#e8f5e9; padding:12px 16px; border-radius:8px; margin: 12px 0;">
+                <strong style="color:#2e7d32;">🔹 Promote these villages:</strong>
+                <span style="color:#1b5e20;"> {promote_text}</span><br>
+                <small style="color:#388e3c;">These villages have low visitor numbers and great potential for sustainable growth.</small>
+            </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+            <div style="background-color:#f1f8e9; padding:12px 16px; border-radius:8px; margin: 12px 0;">
+                <strong style="color:#558b2f;">✅ No villages currently need promotion based on visitor data.</strong>
+            </div>
+        """, unsafe_allow_html=True)
+
+    # --- Monitor Villages Box ---
+    if high_visitor_villages:
+        monitor_text = ", ".join(high_visitor_villages)
+        st.markdown(f"""
+            <div style="background-color:#fff3e0; padding:12px 16px; border-radius:8px; margin: 12px 0;">
+                <strong style="color:#ef6c00;">⚠️ Monitor these villages carefully:</strong>
+                <span style="color:#e65100;"> {monitor_text}</span><br>
+                <small style="color:#fb8c00;">They have high visitor numbers and might be at risk of over-tourism.</small>
+            </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+            <div style="background-color:#e8f5e9; padding:12px 16px; border-radius:8px; margin: 12px 0;">
+                <strong style="color:#388e3c;">✅ No villages currently show signs of over-tourism.</strong>
+            </div>
+        """, unsafe_allow_html=True)
+
+    # --- Footer Text ---
+    st.markdown("""
+        <div style="font-style: italic; color: #666; margin-top: 8px; font-size: 13.5px;">
+            Use these insights to guide responsible tourism strategies and balance visitor distribution for sustainability.
+        </div>
+    """, unsafe_allow_html=True)
+
+
+        
+
+        
+
 # ------------------- STORIES TAB (FIXED VERSION) -------------------
 with tabs[4]:
     # Connection manager (auto-reconnects if needed)
