@@ -13,7 +13,7 @@ import altair as alt
 from datetime import date
 import calendar
 
-# --- Set Page Configuration ---
+# --- Set Page Configuration --- its important guys keep it on top
 st.set_page_config(
     page_title="India's Cultural Canvas | Incredible India",
     page_icon="🎨",
@@ -21,7 +21,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Page Header with Background Image ---
+# --- Page Header with Background Image --- (CSS We can work with)
 st.markdown(
     """
     <style>
@@ -84,7 +84,7 @@ st.markdown(
     </style>
     """, unsafe_allow_html=True)
 
-# Big India Canvas Headline with Background Image
+# Big India Canvas Headline with Background Image(BG)
 st.markdown('<div class="header"><h1>Explore the Soul of India, One Village at a Time</h1><p>Celebrating the rich heritage of India’s vibrant art villages and cultural destinations.</p></div>', unsafe_allow_html=True)
 
 st.markdown("### 🌟 Discover, Experience, and Preserve India's Cultural Roots")
